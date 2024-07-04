@@ -156,28 +156,55 @@ local function disconnect()
   end
 end
 _2amodule_2a["disconnect"] = disconnect
+local function collect_results(input)
+  local function accumulate_results(input0, offset, results)
+    local start, _end, capture = input0:find("%$%d+ = ([^\n]+)\n", offset)
+    if start then
+      local function _22_()
+        table.insert(results, {start, capture})
+        return results
+      end
+      return accumulate_results(input0, (1 + _end), _22_())
+    else
+      local first_match_index = a["get-in"](results, {1, 1})
+      if first_match_index then
+        return first_match_index, a.map(a.second, results)
+      else
+        return nil
+      end
+    end
+  end
+  return accumulate_results(input, 1, {})
+end
+_2amodule_locals_2a["collect-results"] = collect_results
 local function parse_guile_result(s)
   local prompt = s:find("scheme@%([%w%-%s]+%)> ")
   if prompt then
-    local ind1, _0, result = s:find("%$%d+ = ([^\n]+)\n")
+    local ind1, results = collect_results(s)
     local stray_output
-    local function _22_()
-      if result then
+    local function _25_()
+      if results then
         return ind1
       else
         return prompt
       end
     end
-    stray_output = s:sub(1, (_22_() - 1))
+    stray_output = s:sub(1, (_25_() - 1))
     if (#stray_output > 0) then
       log.append(text["prefixed-lines"](text["trim-last-newline"](stray_output), "; (out) "))
     else
     end
-    return {["done?"] = true, result = result, ["error?"] = false}
+    local _27_
+    if results then
+      _27_ = str.join("\n", results)
+    else
+      _27_ = nil
+    end
+    return {["done?"] = true, result = _27_, ["error?"] = false}
   elseif s:find("scheme@%([%w%-%s]+%) %[%d+%]>") then
     return {["done?"] = true, ["error?"] = true, result = nil}
   else
-    return {result = s, ["error?"] = false, ["done?"] = false}
+    return {result = s, ["done?"] = false, ["error?"] = false}
   end
 end
 _2amodule_locals_2a["parse-guile-result"] = parse_guile_result
@@ -187,16 +214,16 @@ local function connect(opts)
   if ("string" ~= type(pipename)) then
     return log.append({(comment_prefix .. "g:conjure#client#guile#socket#pipename is not specified"), (comment_prefix .. "Please set it to the name of your Guile REPL pipe or pass it to :ConjureConnect [pipename]")})
   else
-    local function _25_()
+    local function _30_()
       return display_repl_status()
     end
-    local function _26_(msg, repl)
+    local function _31_(msg, repl)
       display_result(msg)
-      local function _27_()
+      local function _32_()
       end
-      return repl.send(",q\n", _27_)
+      return repl.send(",q\n", _32_)
     end
-    return a.assoc(state(), "repl", socket.start({["parse-output"] = parse_guile_result, pipename = pipename, ["on-success"] = _25_, ["on-error"] = _26_, ["on-failure"] = disconnect, ["on-close"] = disconnect, ["on-stray-output"] = display_result}))
+    return a.assoc(state(), "repl", socket.start({["parse-output"] = parse_guile_result, pipename = pipename, ["on-success"] = _30_, ["on-error"] = _31_, ["on-failure"] = disconnect, ["on-close"] = disconnect, ["on-stray-output"] = display_result}))
   end
 end
 _2amodule_2a["connect"] = connect
@@ -205,10 +232,10 @@ local function on_exit()
 end
 _2amodule_2a["on-exit"] = on_exit
 local function on_filetype()
-  local function _29_()
+  local function _34_()
     return connect()
   end
-  mapping.buf("GuileConnect", cfg({"mapping", "connect"}), _29_, {desc = "Connect to a REPL"})
+  mapping.buf("GuileConnect", cfg({"mapping", "connect"}), _34_, {desc = "Connect to a REPL"})
   return mapping.buf("GuileDisconnect", cfg({"mapping", "disconnect"}), disconnect, {desc = "Disconnect from the REPL"})
 end
 _2amodule_2a["on-filetype"] = on_filetype

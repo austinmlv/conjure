@@ -114,21 +114,37 @@
       (display-repl-status)
       (a.assoc (state) :repl nil))))
 
+(defn- collect-results [input]
+  (fn accumulate-results [input offset results]
+    (let [(start end capture) (input:find "%$%d+ = ([^\n]+)\n" offset)]
+      (if start
+        (accumulate-results
+          input
+          (+ 1 end)
+          (do (table.insert results [start capture]) results))
+        (let [first-match-index (a.get-in results [1 1])]
+          (when first-match-index
+            (values
+              first-match-index
+              (a.map a.second results)))))))
+
+  (accumulate-results input 1 []))
+
 (defn- parse-guile-result [s]
   (let [prompt (s:find "scheme@%([%w%-%s]+%)> ")]
     (if
       prompt
-      (let [(ind1 _ result) (s:find "%$%d+ = ([^\n]+)\n")
+      (let [(ind1 results) (collect-results s)
             stray-output (s:sub
                            1
-                           (- (if result ind1 prompt) 1))]
+                           (- (if results ind1 prompt) 1))]
         (when (> (length stray-output) 0)
           (log.append
             (-> (text.trim-last-newline stray-output)
                 (text.prefixed-lines "; (out) "))))
         {:done? true
          :error? false
-         :result result})
+         :result (when results (str.join "\n" results))})
 
       (s:find "scheme@%([%w%-%s]+%) %[%d+%]>")
       {:done? true
